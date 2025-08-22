@@ -1,0 +1,145 @@
+# Define persistent volumes for each MongoDB instance
+volumes:
+  mongodb_atlas_data:
+
+# Create a dedicated network for MongoDB communication
+networks:
+  mongodb_network:
+    driver: bridge
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mongodb-demo-kafka-connector
+    networks:
+      - mongodb_network
+    environment:
+      - MONGODB_URI=mongodb://admin:admin@mongodb_atlas:27027/?directConnection=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      - mongodb_atlas
+
+  mongodb_atlas:
+    image: mongodb/mongodb-atlas-local:8.0.5-20250808T111358Z
+    restart: unless-stopped
+    volumes:
+      - mongodb_atlas_data:/data/db
+    networks:
+      - mongodb_network
+    environment:
+      - MONGODB_INITDB_ROOT_USERNAME=admin
+      - MONGODB_INITDB_ROOT_PASSWORD=admin
+    ports:
+      - "47027:27017"
+
+  kafka-kraft:
+    image: apache/kafka:3.9.1
+    restart: unless-stopped
+    hostname: kafka-kraft
+    networks:
+      - mongodb_network
+    ports:
+      - "9092:9092"
+    environment:
+      CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://kafka-kraft:9092,CONTROLLER://kafka-kraft:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-kraft:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-kraft:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+    healthcheck:
+      test: ["CMD", "nc", "-z", "kafka-kraft", "9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  kafka-connect:
+    image: confluentinc/cp-kafka-connect:8.0.0
+    restart: unless-stopped
+    hostname: kafka-connect
+    networks:
+      - mongodb_network
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./config/source-connector-config.json:/config/source-connector-config.json
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka-kraft:9092
+      CONNECT_GROUP_ID: "quickstart"
+      CONNECT_CONFIG_STORAGE_TOPIC: "quickstart-config"
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_TOPIC: "quickstart-offsets"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_TOPIC: "quickstart-status"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
+      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components
+    command:
+      - bash
+      - -c
+      - |
+        # Install MongoDB Kafka Connector
+        confluent-hub install --no-prompt mongodb/kafka-connect-mongodb:2.0.1
+        #
+        # Start Kafka Connect
+        /etc/confluent/docker/run
+
+        # Wait for Connect to be ready, then register the connector
+        sleep 15
+        curl -X POST -H "Content-Type: application/json" \
+          --data @/config/source-connector-config.json \
+          http://kafka-connect:8083/connectors
+        wait
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "curl -sf http://kafka-connect:8083/connectors | grep -q mongo-source",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      kafka-kraft:
+        condition: service_healthy
+      mongodb_atlas:
+        condition: service_healthy
+
+  akhq:
+    image: tchiotludo/akhq:latest
+    restart: unless-stopped
+    networks:
+      - mongodb_network
+    ports:
+      - "9080:8080"
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            demo-kafka:
+              properties:
+                bootstrap.servers: "kafka-kraft:9092"
+              connect:
+                - name: kafka-connect
+                  url: http://kafka-connect:8083
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+      kafka-kraft:
+        condition: service_healthy

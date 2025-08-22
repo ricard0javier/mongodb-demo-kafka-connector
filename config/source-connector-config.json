@@ -1,0 +1,10 @@
+{
+  "name": "mongo-source",
+  "config": {
+    "connector.class": "com.mongodb.kafka.connect.MongoSourceConnector",
+    "connection.uri": "mongodb://admin:admin@mongodb_atlas:27017/?directConnection=true",
+    "database": "quickstart",
+    "collection": "sampleData",
+    "pipeline": "[{\"$match\": {\"operationType\": {\"$in\": [\"insert\", \"update\", \"replace\", \"delete\"]}}}, {$addFields : {\"fullDocument.travel\":\"MongoDB Kafka Connector\"}}]"
+  }
+}

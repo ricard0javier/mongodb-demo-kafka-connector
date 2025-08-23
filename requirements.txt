@@ -15,3 +15,4 @@ pytest
 pymongo
 kagglehub
 pandas
+kafka-python

@@ -70,8 +70,6 @@ services:
       - mongodb_network
     ports:
       - "8083:8083"
-    volumes:
-      - ./config/source-connector-config.json:/config/source-connector-config.json
     environment:
       CONNECT_BOOTSTRAP_SERVERS: kafka-kraft:9092
       CONNECT_GROUP_ID: "quickstart"
@@ -93,25 +91,11 @@ services:
       - |
         # Install MongoDB Kafka Connector
         confluent-hub install --no-prompt mongodb/kafka-connect-mongodb:2.0.1
-        #
+
         # Start Kafka Connect
         /etc/confluent/docker/run
-
-        # Wait for Connect to be ready, then register the connector
-        sleep 15
-        curl -X POST -H "Content-Type: application/json" \
-          --data @/config/source-connector-config.json \
-          http://kafka-connect:8083/connectors
-        wait
-
     healthcheck:
-      test:
-        [
-          "CMD",
-          "sh",
-          "-c",
-          "curl -sf http://kafka-connect:8083/connectors | grep -q mongo-source",
-        ]
+      test: ["CMD", "sh", "-c", "curl -sf http://kafka-connect:8083/connectors"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -120,6 +104,26 @@ services:
         condition: service_healthy
       mongodb_atlas:
         condition: service_healthy
+
+  connector-setup:
+    image: python:3.11-slim
+    networks:
+      - mongodb_network
+    volumes:
+      - ./src/update_connectors.py:/scripts/update_connectors.py
+    environment:
+      MONGODB_URI: "mongodb://admin:admin@mongodb_atlas:27017/?directConnection=true"
+    command:
+      - bash
+      - -c
+      - |
+        # Register the connector
+        pip install requests python-dotenv
+        python /scripts/update_connectors.py
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+    restart: "no"
 
   akhq:
     image: tchiotludo/akhq:latest

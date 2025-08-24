@@ -42,6 +42,7 @@ class MonitorConfig:
     consumer_group: str = "load_test_monitor"
     duration_seconds: int = 60
     report_interval: int = 5
+    target_throughput: float = 800.0
 
     def __post_init__(self):
         if self.kafka_servers is None:
@@ -232,11 +233,11 @@ class KafkaMonitor:
             print(f"Last Message: {self.metrics.message_timestamps[-1]}")
 
         # Assessment
-        if message_rate >= self.config.events_per_second * 0.9375:  # 93.75% of 800
+        if message_rate >= self.config.target_throughput * 0.9375:  # 93.75% of 800
             print(
                 f"\n✅ SUCCESS: High throughput achieved ({message_rate:.1f} msg/sec)"
             )
-        elif message_rate >= self.config.events_per_second * 0.8:  # 80% of 800
+        elif message_rate >= self.config.target_throughput * 0.8:  # 80% of 800
             print(f"\n⚠️  WARNING: Moderate throughput ({message_rate:.1f} msg/sec)")
         else:
             print(f"\n❌ LOW THROUGHPUT: Only {message_rate:.1f} msg/sec")
@@ -275,6 +276,12 @@ async def main():
         default="load_test_monitor",
         help="Consumer group ID (default: load_test_monitor)",
     )
+    parser.add_argument(
+        "--target-throughput",
+        type=float,
+        default=800.0,
+        help="Target throughput in messages per second (default: 800)",
+    )
 
     args = parser.parse_args()
 
@@ -288,6 +295,7 @@ async def main():
         topic_pattern=args.topic,
         duration_seconds=args.duration,
         consumer_group=args.consumer_group,
+        target_throughput=args.target_throughput,
     )
 
     monitor = KafkaMonitor(config)

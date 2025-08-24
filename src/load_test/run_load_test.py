@@ -230,6 +230,7 @@ async def main():
         kafka_servers=args.kafka_servers,
         topic_pattern=args.kafka_topic,
         duration_seconds=args.duration + 10,  # Monitor slightly longer
+        target_throughput=args.events_per_second,
     )
 
     # Run the test

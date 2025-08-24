@@ -41,6 +41,7 @@ Start by adding code in the [index.ts](src/main.py) or using the [playground](pl
 - `MONGODB_SERVER_SELECTION_TIMEOUT_MS` - Server selection timeout in ms (default: `5000`)
 - `MONGODB_RETRY_WRITES` - Enable retry writes (default: `true`)
 - `MONGODB_RETRY_READS` - Enable retry reads (default: `true`)
+- `KAFKA_CONNECT_URL` - Url to connect to kafka connect anc configure connectors (default: `http://localhost:8083`)
 
 #### Logging
 
@@ -64,3 +65,33 @@ Start by adding code in the [index.ts](src/main.py) or using the [playground](pl
 - `make clean`: Clean build artifacts
 - `make install`: Install dependencies
 - `make dev`: Start development server
+
+## Load Testing
+
+Test your MongoDB Kafka connector's performance with built-in load testing tools.
+
+### Quick Test
+
+```bash
+# Run complete load test (800 events/sec for 60 seconds)
+python src/run_load_test.py
+
+# Custom configuration
+python src/run_load_test.py --events-per-second 1000 --duration 120
+```
+
+### Key Parameters
+
+- `--events-per-second`: Target rate (default: 800)
+- `--duration`: Test duration in seconds (default: 60)
+- `--batch-size`: MongoDB insert batch size (default: 100)
+- `--mongodb-uri`: Connection string
+- `--kafka-topic`: Topic to monitor (default: quickstart.sampleData)
+
+### Success Criteria
+
+- ✅ **SUCCESS**: ≥95% target rate achieved
+- ⚠️ **WARNING**: 85-95% target rate
+- ❌ **FAILED**: <85% target rate
+
+See [LOAD_TEST_README.md](src/load_test/LOAD_TEST_README.md) for detailed usage and troubleshooting.

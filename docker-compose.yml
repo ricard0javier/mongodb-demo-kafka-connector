@@ -147,3 +147,5 @@ services:
         condition: service_healthy
       kafka-kraft:
         condition: service_healthy
+      connector-setup:
+        condition: service_started

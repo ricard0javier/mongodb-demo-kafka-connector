@@ -74,10 +74,10 @@ Test your MongoDB Kafka connector's performance with built-in load testing tools
 
 ```bash
 # Run complete load test (800 events/sec for 60 seconds)
-python src/run_load_test.py
+python src/load_test/run_load_test.py
 
 # Custom configuration
-python src/run_load_test.py --events-per-second 1000 --duration 120
+python src/load_test/run_load_test.py --events-per-second 4000 --duration 120
 ```
 
 ### Key Parameters

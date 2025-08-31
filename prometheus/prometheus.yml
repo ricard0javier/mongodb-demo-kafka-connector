@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 5s # By default, scrape targets every 15 seconds.
+  evaluation_interval: 5s # By default, scrape targets every 15 seconds.
+  # scrape_timeout is set to the global default (10s).
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "kafka"
+    static_configs:
+      - targets: ["kafka_exporter:9308"]
+
+  - job_name: "mongodb"
+    static_configs:
+      - targets: ["mongodb_exporter:9216"]
+
+  - job_name: "kafka-connect"
+    static_configs:
+      - targets: ["kafka-connect:5083"]

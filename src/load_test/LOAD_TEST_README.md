@@ -64,10 +64,10 @@ python src/kafka_monitor.py --topic quickstart.sampleData --duration 60
 ### Complete Test with Custom Settings
 
 ```bash
-python src/run_load_test.py \
-  --events-per-second 800 \
-  --duration 120 \
-  --batch-size 100 \
+python src/load_test/run_load_test.py \
+  --events-per-second 8000 \
+  --duration 60 \
+  --batch-size 500 \
   --mongodb-uri "mongodb://admin:admin@localhost:47027/?directConnection=true" \
   --kafka-topic "quickstart.sampleData"
 ```

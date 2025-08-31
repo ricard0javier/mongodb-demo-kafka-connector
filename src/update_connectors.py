@@ -25,7 +25,18 @@ def main():
                 "operationType": {"$in": ["insert", "update", "replace", "delete"]}
             }
         },
-        {"$addFields": {"fullDocument.travel": "MongoDB Kafka Connector"}},
+        {
+            "$addFields": {
+                "fullDocument.travel": "MongoDB Kafka Connector",
+                "timeFromEventCreationToMessagePublish": {
+                    "$dateDiff": {
+                        "startDate": "$fullDocument.createdAt",
+                        "endDate": "$wallTime",
+                        "unit": "millisecond",
+                    }
+                },
+            }
+        },
     ]
 
     # Connector configuration
@@ -37,16 +48,61 @@ def main():
             "database": "quickstart",
             "collection": "sampleData",
             "startup.mode": "latest",
-            "publish.full.document.only": True,
-            "publish.full.document.only.tombstone.on.delete": True,
-            "poll.await.time.ms": 50,
-            "poll.max.batch.size": 5000,
-            "batch.size": 5000,
-            "producer.override.linger.ms": 5,
-            "producer.override.batch.size": 65536,
-            "producer.override.buffer.memory": 67108864,
-            "producer.override.max.block.ms": 60000,
+            # Capture Before and After States
+            "publish.full.document.only": False,
+            "capture.mode": "change_streams",
+            # Include Before Document on Updates
+            "change.stream.full.document.before.change": "whenAvailable",
+            "change.stream.full.document": "updateLookup",
+            # Batch/poll tuning
+            "batch.size": 2000,
+            "poll.max.batch.size": 2000,
+            "poll.await.time.ms": 200,
+            "producer.override.linger.ms": 200,
+            "producer.override.batch.size": 5000000,  # 2.5Kb * 2000 * 10000 / 5 = 5Mb
+            "producer.override.buffer.memory": 1000000000,  # 1GB
+            "producer.override.compression.type": "lz4",
             "producer.override.acks": "1",
+            "producer.override.max.in.flight.requests.per.connection": 10,
+            "producer.override.retries": 10,
+            # Avro Key/Value Converters with Schema Registry
+            "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+            "key.converter.schemas.enable": False,
+            "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+            "value.converter.schemas.enable": False,
+            "value.converter.decimal.format": "NUMERIC",
+            # Ensure Kafka key is stored in JSON format
+            "output.schema.infer.key": True,
+            "output.json.formatter": "com.mongodb.kafka.connect.source.json.formatter.SimplifiedJson",
+            # Ensure the Avro schema is generated with proper field types
+            "output.format.value": "schema",
+            "output.schema.infer.value": True,
+            "output.format.key": "json",
+            "change.stream.resume.strategy": "latest",
+            "offset.strategy": "latest",
+            "errors.tolerance": "all",
+            "errors.retry.timeout": 30000,
+            "errors.retry.delay.max.ms": 1000,
+            "heartbeat.interval.ms": 10000,
+            "heartbeat.topic.name": "sportsbook-nextgen-mongodb-connect-cluster-heartbeats",
+            # Topic Configuration
+            "topic.prefix": "",
+            # Transformations
+            # "transforms": "forwardOtelHeaders,removeUpdatedFields,dropTopicPrefix",
+            # Predicate for heartbeats
+            "predicates": "isHeartbeat",
+            "predicates.isHeartbeat.type": "org.apache.kafka.connect.transforms.predicates.TopicNameMatches",
+            "predicates.isHeartbeat.pattern": "sportsbook-nextgen-mongodb-connect-cluster-heartbeats",
+            # Apply transforms only if NOT heartbeat
+            "transforms.dropTopicPrefix.predicate": "isHeartbeat",
+            "transforms.dropTopicPrefix.negate": True,
+            "transforms.removeUpdatedFields.predicate": "isHeartbeat",
+            "transforms.removeUpdatedFields.negate": True,
+            "transforms.dropTopicPrefix.type": "org.apache.kafka.connect.transforms.RegexRouter",
+            "transforms.dropTopicPrefix.regex": "sportsbook.(.*)",
+            "transforms.dropTopicPrefix.replacement": "sportsbook.json.rds.$1",
+            "transforms.removeUpdatedFields.type": "org.apache.kafka.connect.transforms.ReplaceField$Value",
+            "transforms.removeUpdatedFields.blacklist": "updateDescription,_id",
             "pipeline": json.dumps(pipeline),
         },
     }

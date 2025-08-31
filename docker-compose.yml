@@ -33,6 +33,20 @@ services:
       - MONGODB_INITDB_ROOT_PASSWORD=admin
     ports:
       - "47027:27017"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--host",
+          "localhost:27017",
+          "--eval",
+          "db.runCommand('ping').ok",
+          "--quiet",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   kafka-kraft:
     image: apache/kafka:3.9.1
@@ -56,6 +70,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_NUM_PARTITIONS: 3
+      JMX_PORT: 9999
     healthcheck:
       test: ["CMD", "nc", "-z", "kafka-kraft", "9092"]
       interval: 30s
@@ -70,6 +85,7 @@ services:
       - mongodb_network
     ports:
       - "8083:8083"
+      - "5083:5083"
     environment:
       CONNECT_BOOTSTRAP_SERVERS: kafka-kraft:9092
       CONNECT_GROUP_ID: "quickstart"
@@ -85,12 +101,23 @@ services:
       CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
       CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components
+      KAFKA_OPTS: "-javaagent:/home/appuser/prometheus-jmx-exporter/jmx_prometheus_javaagent-0.18.0.jar=5083:/home/appuser/prometheus-jmx-exporter/kafka-connect.yml"
+      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote=true -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=localhost -Dcom.sun.management.jmxremote.host=localhost -Dcom.sun.management.jmxremote.port=5084 -Dcom.sun.management.jmxremote.rmi.port=5084 -Dcom.sun.management.jmxremote.local.only=false"
     command:
       - bash
       - -c
       - |
         # Install MongoDB Kafka Connector
         confluent-hub install --no-prompt mongodb/kafka-connect-mongodb:2.0.1
+
+        # Install Prometheus JMX Exporter if not already installed
+        mkdir -p /home/appuser/prometheus-jmx-exporter
+        if [ ! -f /home/appuser/prometheus-jmx-exporter/jmx_prometheus_javaagent-0.18.0.jar ]; then
+          curl -L -o /home/appuser/prometheus-jmx-exporter/jmx_prometheus_javaagent-0.18.0.jar \
+            https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/0.18.0/jmx_prometheus_javaagent-0.18.0.jar
+          curl -L -o /home/appuser/prometheus-jmx-exporter/kafka-connect.yml \
+            https://raw.githubusercontent.com/saraengineer/kafka-connect-monitoring/refs/heads/main/prometheus/kafka-connect.yml
+        fi
 
         # Start Kafka Connect
         /etc/confluent/docker/run
@@ -149,3 +176,56 @@ services:
         condition: service_healthy
       connector-setup:
         condition: service_started
+
+  prometheus:
+    image: prom/prometheus
+    networks:
+      - mongodb_network
+    ports:
+      - 9090:9090
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./prometheus:/etc/prometheus
+
+  grafana:
+    image: grafana/grafana:latest
+    networks:
+      - mongodb_network
+    ports:
+      - 3000:3000/tcp
+    depends_on:
+      - prometheus
+    environment:
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      GF_AUTH_DISABLE_LOGIN_FORM: true
+      GF_AUTH_ANONYMOUS_ENABLED: true
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./grafana:/etc/grafana/provisioning/datasources
+
+  mongodb_exporter:
+    image: percona/mongodb_exporter:0.47.0
+    restart: unless-stopped
+    networks:
+      - mongodb_network
+    ports:
+      - "9216:9216"
+    command:
+      - --mongodb.uri=mongodb://admin:admin@mongodb_atlas:27017/?directConnection=true
+    depends_on:
+      mongodb_atlas:
+        condition: service_healthy
+
+  kafka_exporter:
+    image: danielqsj/kafka-exporter:v1.9.0
+    restart: unless-stopped
+    networks:
+      - mongodb_network
+    ports:
+      - "9308:9308"
+    command:
+      - --kafka.server=kafka-kraft:9092
+    depends_on:
+      kafka-kraft:
+        condition: service_healthy

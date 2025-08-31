@@ -10,7 +10,7 @@ install:
 	pip install -r requirements.txt
 
 dev:
-	docker-compose up -d akhq
+	docker-compose up -d akhq prometheus grafana
 	$(CONDA_ACTIVATE) $(ENV_NAME) && \
 	$$(conda info --envs | grep $(ENV_NAME) | awk '{print $$NF}')/bin/python src/main.py
 

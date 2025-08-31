@@ -7,9 +7,9 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  - job_name: "kafka"
+  - job_name: "kafka-kraft"
     static_configs:
-      - targets: ["kafka_exporter:9308"]
+      - targets: ["kafka-kraft:9999"]
 
   - job_name: "mongodb"
     static_configs:

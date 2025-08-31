@@ -56,6 +56,9 @@ services:
       - mongodb_network
     ports:
       - "9092:9092"
+      - "9999:9999"
+    volumes:
+      - ./jmx-exporter:/opt/jmx-exporter
     environment:
       CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
       KAFKA_NODE_ID: 1
@@ -70,7 +73,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_NUM_PARTITIONS: 3
-      JMX_PORT: 9999
+      KAFKA_OPTS: "-javaagent:/opt/jmx-exporter/jmx_prometheus_javaagent.jar=9999:/opt/jmx-exporter/kafka-config.yml"
     healthcheck:
       test: ["CMD", "nc", "-z", "kafka-kraft", "9092"]
       interval: 30s
@@ -215,17 +218,4 @@ services:
       - --mongodb.uri=mongodb://admin:admin@mongodb_atlas:27017/?directConnection=true
     depends_on:
       mongodb_atlas:
-        condition: service_healthy
-
-  kafka_exporter:
-    image: danielqsj/kafka-exporter:v1.9.0
-    restart: unless-stopped
-    networks:
-      - mongodb_network
-    ports:
-      - "9308:9308"
-    command:
-      - --kafka.server=kafka-kraft:9092
-    depends_on:
-      kafka-kraft:
         condition: service_healthy

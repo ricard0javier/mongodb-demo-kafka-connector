@@ -59,7 +59,7 @@ def main():
             "poll.max.batch.size": 2000,
             "poll.await.time.ms": 200,
             "producer.override.linger.ms": 200,
-            "producer.override.batch.size": 5000000,  # 2.5Kb * 2000 * 10000 / 5 = 5Mb
+            "producer.override.batch.size": 5000000,  # 2.5Kb * 2000 * 1000 = 5Mb
             "producer.override.buffer.memory": 1000000000,  # 1GB
             "producer.override.compression.type": "lz4",
             "producer.override.acks": "1",

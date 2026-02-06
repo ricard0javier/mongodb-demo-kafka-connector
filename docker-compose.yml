@@ -111,7 +111,7 @@ services:
       - -c
       - |
         # Install MongoDB Kafka Connector
-        confluent-hub install --no-prompt mongodb/kafka-connect-mongodb:2.0.1
+        confluent-hub install --no-prompt mongodb/kafka-connect-mongodb:1.15.0
 
         # Install Prometheus JMX Exporter if not already installed
         mkdir -p /home/appuser/prometheus-jmx-exporter
@@ -142,7 +142,7 @@ services:
     volumes:
       - ./src/update_connectors.py:/scripts/update_connectors.py
     environment:
-      MONGODB_URI: "mongodb://admin:admin@mongodb_atlas:27017/?directConnection=true"
+      MONGODB_URI: "mongodb+srv://demo_user1:demo_password1@cluster0.22fxx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
     command:
       - bash
       - -c
@@ -168,17 +168,7 @@ services:
           connections:
             demo-kafka:
               properties:
-                bootstrap.servers: "kafka-kraft:9092"
-              connect:
-                - name: kafka-connect
-                  url: http://kafka-connect:8083
-    depends_on:
-      kafka-connect:
-        condition: service_healthy
-      kafka-kraft:
-        condition: service_healthy
-      connector-setup:
-        condition: service_started
+                bootstrap.servers: "kafka.dev-delasport.com:9094"
 
   prometheus:
     image: prom/prometheus
@@ -206,16 +196,3 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
     volumes:
       - ./grafana:/etc/grafana/provisioning/datasources
-
-  mongodb_exporter:
-    image: percona/mongodb_exporter:0.47.0
-    restart: unless-stopped
-    networks:
-      - mongodb_network
-    ports:
-      - "9216:9216"
-    command:
-      - --mongodb.uri=mongodb://admin:admin@mongodb_atlas:27017/?directConnection=true
-    depends_on:
-      mongodb_atlas:
-        condition: service_healthy
